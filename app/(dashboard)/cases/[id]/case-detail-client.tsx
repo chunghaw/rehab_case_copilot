@@ -99,10 +99,12 @@ export function CaseDetailClient({ caseId }: CaseDetailClientProps) {
             <div className="flex gap-2">
               <ReportGenerator
                 caseId={caseId}
+              interactions={caseData.interactions || []}
                 onReportGenerated={handleReportGenerated}
               />
               <AddInteractionDialog
                 caseId={caseId}
+              interactions={caseData.interactions || []}
                 onInteractionAdded={fetchCaseData}
               />
             </div>

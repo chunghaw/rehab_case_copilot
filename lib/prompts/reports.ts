@@ -68,7 +68,8 @@ export interface ReportControls {
 export function buildProgressReportPrompt(
   caseContext: CaseContext,
   interactions: InteractionData[],
-  controls: ReportControls
+  controls: ReportControls,
+  extraContext?: string
 ): string {
   const interactionsSummary = interactions
     .map((i) => `${i.dateTime} - ${i.type}: ${i.aiSummary || 'No summary available'}`)
@@ -90,7 +91,8 @@ RECENT INTERACTIONS (last 4-6 weeks):
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-- Tone: ${controls.tone}
+
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -113,7 +115,8 @@ Base all content on the information provided above - do not invent details.`;
 export function buildRTWPlanPrompt(
   caseContext: CaseContext,
   interactions: InteractionData[],
-  controls: ReportControls
+  controls: ReportControls,
+  extraContext?: string
 ): string {
   const interactionsSummary = interactions
     .map((i) => `${i.dateTime} - ${i.type}: ${i.aiSummary || 'No summary available'}`)
@@ -135,7 +138,8 @@ RELEVANT INTERACTIONS:
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-- Tone: ${controls.tone}
+
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -161,7 +165,8 @@ Base all content on the information provided - do not invent details.`;
 export function buildCaseConferencePrompt(
   caseContext: CaseContext,
   interaction: InteractionData,
-  controls: ReportControls
+  controls: ReportControls,
+  extraContext?: string
 ): string {
   return `Generate Case Conference Minutes for this WorkCover case.
 
@@ -180,7 +185,8 @@ CONFERENCE SUMMARY:
 ${interaction.aiSummary || 'No summary available'}
 
 REPORT REQUIREMENTS:
-- Tone: ${controls.tone}
+
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -203,7 +209,8 @@ Base all content on the information provided.`;
 export function buildClosureReportPrompt(
   caseContext: CaseContext,
   interactions: InteractionData[],
-  controls: ReportControls
+  controls: ReportControls,
+  extraContext?: string
 ): string {
   const interactionsSummary = interactions
     .map((i) => `${i.dateTime} - ${i.type}: ${i.aiSummary || 'No summary available'}`)
@@ -224,7 +231,8 @@ CASE HISTORY:
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-- Tone: ${controls.tone}
+
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 

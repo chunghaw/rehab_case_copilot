@@ -24,29 +24,30 @@ export async function generateReport(
   reportType: ReportType,
   caseContext: CaseContext,
   interactions: InteractionData[],
-  controls: ReportControls
+  controls: ReportControls,
+  extraContext?: string
 ): Promise<string> {
   let userPrompt: string;
 
   switch (reportType) {
     case 'PROGRESS_REPORT':
-      userPrompt = buildProgressReportPrompt(caseContext, interactions, controls);
+      userPrompt = buildProgressReportPrompt(caseContext, interactions, controls, extraContext);
       break;
     case 'RTW_PLAN':
-      userPrompt = buildRTWPlanPrompt(caseContext, interactions, controls);
+      userPrompt = buildRTWPlanPrompt(caseContext, interactions, controls, extraContext);
       break;
     case 'CASE_CONFERENCE':
       if (interactions.length === 0) {
         throw new Error('Case conference report requires at least one interaction');
       }
-      userPrompt = buildCaseConferencePrompt(caseContext, interactions[0], controls);
+      userPrompt = buildCaseConferencePrompt(caseContext, interactions[0], controls, extraContext);
       break;
     case 'CLOSURE':
-      userPrompt = buildClosureReportPrompt(caseContext, interactions, controls);
+      userPrompt = buildClosureReportPrompt(caseContext, interactions, controls, extraContext);
       break;
     case 'INITIAL_NEEDS_ASSESSMENT':
       // Similar to progress report but focused on initial assessment
-      userPrompt = buildProgressReportPrompt(caseContext, interactions, controls).replace(
+      userPrompt = buildProgressReportPrompt(caseContext, interactions, controls, extraContext).replace(
         'Progress Report',
         'Initial Needs Assessment'
       );

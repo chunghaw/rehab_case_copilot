@@ -14,7 +14,7 @@ const generateReportSchema = z.object({
     'CLOSURE',
   ]),
   interactionIds: z.array(z.string()).optional(),
-  controls: z.object({
+  extraContext: z.string().optional(),  controls: z.object({
     tone: z.enum(['neutral', 'supportive', 'assertive']).default('neutral'),
     length: z.enum(['short', 'standard', 'extended']).default('standard'),
     audience: z
