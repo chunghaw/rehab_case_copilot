@@ -3,14 +3,13 @@ import { prisma } from '@/lib/db/prisma';
 import { z } from 'zod';
 
 const updateTaskSchema = z.object({
+  id: z.string(),
   status: z.enum(['PENDING', 'DONE', 'OVERDUE']).optional(),
   description: z.string().optional(),
   dueDate: z.string().optional().nullable(),
 });
 
-// ============================================================================
 // GET /api/tasks - List tasks (filter by case or status)
-// ============================================================================
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -49,28 +48,21 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// ============================================================================
-// PATCH /api/tasks/[id] - Update task status
-// ============================================================================
+// PATCH /api/tasks - Update task status
 export async function PATCH(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const taskId = searchParams.get('id');
-
-    if (!taskId) {
-      return NextResponse.json({ error: 'Task ID is required' }, { status: 400 });
-    }
-
     const body = await request.json();
     const validatedData = updateTaskSchema.parse(body);
 
-    const updateData: any = { ...validatedData };
-    if (validatedData.dueDate !== undefined) {
-      updateData.dueDate = validatedData.dueDate ? new Date(validatedData.dueDate) : null;
+    const { id, ...updateFields } = validatedData;
+
+    const updateData: any = { ...updateFields };
+    if (updateFields.dueDate !== undefined) {
+      updateData.dueDate = updateFields.dueDate ? new Date(updateFields.dueDate) : null;
     }
 
     const updatedTask = await prisma.task.update({
-      where: { id: taskId },
+      where: { id },
       data: updateData,
     });
 
@@ -86,4 +78,3 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to update task' }, { status: 500 });
   }
 }
-
