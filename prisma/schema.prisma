@@ -1,0 +1,132 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("POSTGRES_URL")
+  schemas  = ["rehab_copilot"]
+}
+
+// ============================================================================
+// DOMAIN MODELS - Rehab Case Copilot
+// ============================================================================
+
+enum CaseStatus {
+  ACTIVE
+  ON_HOLD
+  CLOSED
+  
+  @@schema("rehab_copilot")
+}
+
+enum InteractionType {
+  CASE_CONFERENCE
+  PHONE_CALL
+  IN_PERSON_MEETING
+  EMAIL
+  NOTE
+  
+  @@schema("rehab_copilot")
+}
+
+enum TaskStatus {
+  PENDING
+  DONE
+  OVERDUE
+  
+  @@schema("rehab_copilot")
+}
+
+enum ReportType {
+  PROGRESS_REPORT
+  RTW_PLAN
+  CASE_CONFERENCE
+  INITIAL_NEEDS_ASSESSMENT
+  CLOSURE
+  
+  @@schema("rehab_copilot")
+}
+
+model Case {
+  id                       String   @id @default(cuid())
+  workerName               String
+  workerInitials           String?
+  claimNumber              String   @unique
+  insurerName              String
+  employerName             String
+  keyContacts              Json
+  status                   CaseStatus @default(ACTIVE)
+  currentCapacitySummary   String?    @db.Text
+  nextKeyDate              DateTime?
+  createdAt                DateTime   @default(now())
+  updatedAt                DateTime   @updatedAt
+  interactions             Interaction[]
+  tasks                    Task[]
+  reports                  Report[]
+  
+  @@index([status])
+  @@index([nextKeyDate])
+  @@schema("rehab_copilot")
+}
+
+model Interaction {
+  id                  String          @id @default(cuid())
+  caseId              String
+  dateTime            DateTime        @default(now())
+  type                InteractionType
+  participants        String[]
+  rawInputSource      String?
+  transcriptText      String?         @db.Text
+  aiSummary           String?         @db.Text
+  aiActionItems       Json?
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+  case                Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tasks               Task[]
+  
+  @@index([caseId])
+  @@index([dateTime])
+  @@index([type])
+  @@schema("rehab_copilot")
+}
+
+model Task {
+  id              String      @id @default(cuid())
+  caseId          String
+  interactionId   String?
+  description     String
+  dueDate         DateTime?
+  status          TaskStatus  @default(PENDING)
+  assignedTo      String      @default("consultant")
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  case            Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  interaction     Interaction? @relation(fields: [interactionId], references: [id], onDelete: SetNull)
+  
+  @@index([caseId])
+  @@index([status])
+  @@index([dueDate])
+  @@schema("rehab_copilot")
+}
+
+model Report {
+  id                          String     @id @default(cuid())
+  caseId                      String
+  type                        ReportType
+  title                       String
+  contentDraft                String     @db.Text
+  generatedFromInteractions   String[]
+  generationControls          Json?
+  createdAt                   DateTime   @default(now())
+  updatedAt                   DateTime   @updatedAt
+  case                        Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  
+  @@index([caseId])
+  @@index([type])
+  @@index([createdAt])
+  @@schema("rehab_copilot")
+}
