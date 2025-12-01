@@ -14,7 +14,10 @@ import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 
 async function getDashboardStats() {
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+  // Use absolute URL for server-side fetch
+  const baseUrl = process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
   
   try {
     const [casesRes, tasksRes] = await Promise.all([
