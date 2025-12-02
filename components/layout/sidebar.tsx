@@ -17,7 +17,14 @@ import {
 import { cn } from '@/lib/utils';
 import { ThemeSwitcher } from './theme-switcher';
 
-const navigation = [
+type NavItem = {
+  name: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: string;
+};
+
+const navigation: NavItem[] = [
   {
     name: 'Dashboard',
     href: '/dashboard',
