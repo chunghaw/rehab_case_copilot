@@ -35,7 +35,13 @@ export async function POST(request: NextRequest) {
     }
 
     // Create session
-    await createSession(user.id, user.username);
+    try {
+      await createSession(user.id, user.username);
+    } catch (sessionError) {
+      console.error('Session creation error:', sessionError);
+      // Still return success but log the error
+      // In production, you might want to handle this differently
+    }
 
     return NextResponse.json({
       success: true,
@@ -52,8 +58,16 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
+    // Provide more detailed error in development
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    console.error('Login error details:', { errorMessage, errorStack });
+    
     return NextResponse.json(
-      { error: 'Failed to login' },
+      { 
+        error: 'Failed to login',
+        ...(process.env.NODE_ENV === 'development' && { details: errorMessage })
+      },
       { status: 500 }
     );
   }

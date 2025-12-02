@@ -11,20 +11,25 @@ const SESSION_COOKIE_NAME = 'rehab_session';
 const SESSION_MAX_AGE = 60 * 60 * 24 * 7; // 7 days
 
 export async function createSession(userId: string, username: string): Promise<string> {
-  const sessionId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
-  
-  // In a production app, you'd store sessions in a database
-  // For simplicity, we'll use a signed cookie
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    maxAge: SESSION_MAX_AGE,
-    path: '/',
-  });
+  try {
+    const sessionId = `${userId}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    
+    // In a production app, you'd store sessions in a database
+    // For simplicity, we'll use a signed cookie
+    const cookieStore = await cookies();
+    cookieStore.set(SESSION_COOKIE_NAME, sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: SESSION_MAX_AGE,
+      path: '/',
+    });
 
-  return sessionId;
+    return sessionId;
+  } catch (error) {
+    console.error('Error creating session:', error);
+    throw new Error(`Failed to create session: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
 }
 
 export async function getSession(): Promise<SessionUser | null> {
