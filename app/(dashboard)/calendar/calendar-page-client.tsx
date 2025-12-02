@@ -39,21 +39,29 @@ export function CalendarPageClient() {
       const data = await response.json();
       
       // Transform interactions to calendar events
-      const calendarEvents: CalendarEvent[] = (data.interactions || []).map((interaction: any) => ({
-        id: interaction.id,
-        dateTime: new Date(interaction.dateTime),
-        type: interaction.type,
-        participants: interaction.participants 
-          ? interaction.participants.map((p: any) => typeof p === 'string' ? p : `${p.role.replace('_', ' ')}: ${p.name}`)
-          : [],
-        isScheduled: interaction.isScheduled || false,
-        scheduledDateTime: interaction.scheduledDateTime ? new Date(interaction.scheduledDateTime) : null,
-        case: interaction.case ? {
-          id: interaction.case.id,
-          workerName: interaction.case.workerName,
-          claimNumber: interaction.case.claimNumber,
-        } : undefined,
-      }));
+      const calendarEvents: CalendarEvent[] = (data.interactions || []).map((interaction: any) => {
+        // Ensure case object has all required fields if it exists
+        let caseData: CalendarEvent['case'] = undefined;
+        if (interaction.case && interaction.case.id && interaction.case.workerName && interaction.case.claimNumber) {
+          caseData = {
+            id: interaction.case.id,
+            workerName: interaction.case.workerName,
+            claimNumber: interaction.case.claimNumber,
+          };
+        }
+        
+        return {
+          id: interaction.id,
+          dateTime: new Date(interaction.dateTime),
+          type: interaction.type,
+          participants: interaction.participants 
+            ? interaction.participants.map((p: any) => typeof p === 'string' ? p : `${p.role.replace('_', ' ')}: ${p.name}`)
+            : [],
+          isScheduled: interaction.isScheduled || false,
+          scheduledDateTime: interaction.scheduledDateTime ? new Date(interaction.scheduledDateTime) : null,
+          case: caseData,
+        };
+      });
 
       setEvents(calendarEvents);
     } catch (error) {
