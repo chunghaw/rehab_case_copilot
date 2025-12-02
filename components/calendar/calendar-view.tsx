@@ -5,20 +5,7 @@ import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSam
 import { Button } from '@/components/ui/button';
 import { ChevronLeft, ChevronRight, Calendar as CalendarIcon, Clock, Users } from 'lucide-react';
 import { cn } from '@/lib/utils';
-
-interface CalendarEvent {
-  id: string;
-  dateTime: Date;
-  type: string;
-  participants: string[];
-  isScheduled?: boolean;
-  scheduledDateTime?: Date | null;
-  case?: {
-    id: string;
-    workerName: string;
-    claimNumber: string;
-  };
-}
+import { CalendarEvent } from '@/lib/types/calendar';
 
 interface CalendarViewProps {
   events: CalendarEvent[];

@@ -16,20 +16,7 @@ import {
 import { Loader2, Calendar, Plus, Clock, Users, FileText } from 'lucide-react';
 import { format } from 'date-fns';
 import Link from 'next/link';
-
-interface CalendarEvent {
-  id: string;
-  dateTime: Date;
-  type: string;
-  participants: string[];
-  isScheduled?: boolean;
-  scheduledDateTime?: Date | null;
-  case?: {
-    id: string;
-    workerName: string;
-    claimNumber: string;
-  };
-}
+import { CalendarEvent } from '@/lib/types/calendar';
 
 export function CalendarPageClient() {
   const searchParams = useSearchParams();
