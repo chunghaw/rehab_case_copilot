@@ -58,8 +58,9 @@ export async function summarizeInteraction(
   transcript: string,
   interactionType: string,
   participants: string[],
-  customInstructions?: string
-): Promise<InteractionSummary> {
+  customInstructions?: string,
+  customSections?: string[]
+): Promise<InteractionSummary & Record<string, any>> {
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
@@ -91,6 +92,7 @@ Transcript/Content:
 ${transcript}
 
 ${customInstructions ? `\nSPECIFIC FOCUS AREAS:\n${customInstructions}\n` : ''}
+${customSections && customSections.length > 0 ? `\nADDITIONAL SECTIONS TO EXTRACT:\nPlease also extract information for these custom sections: ${customSections.join(', ')}. For each custom section, provide an array of relevant points extracted from the transcript.\n` : ''}
 
 Provide a structured summary in JSON format with these fields:
 {
@@ -98,9 +100,13 @@ Provide a structured summary in JSON format with these fields:
   "currentCapacity": "summary of current work capacity and restrictions",
   "treatmentAndMedical": ["array of medical/treatment points"],
   "barriersToRTW": ["array of barriers to return to work"],
-  "agreedActions": ["array of agreed actions and next steps"]
+  "agreedActions": ["array of agreed actions and next steps"${customSections && customSections.length > 0 ? `,\n${customSections.map((section, idx) => {
+    const camelCase = section.replace(/\s+(.)/g, (_, c) => c.toUpperCase()).replace(/\s/g, '').replace(/^(.)/, (_, c) => c.toLowerCase());
+    return `  "${camelCase}": ["array of relevant points for ${section}"]`;
+  }).join(',\n')}` : ''}
 }
 
+${customSections && customSections.length > 0 ? `\nFor custom sections, use camelCase keys (e.g., "nextMeeting" for "Next Meeting"). Extract all relevant information from the transcript for each custom section.\n` : ''}
 Use "Not discussed" or "Not provided" if information is not available.`,
         },
       ],

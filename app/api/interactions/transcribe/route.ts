@@ -103,7 +103,7 @@ ${summary.agreedActions.map((action) => `- ${action}`).join('\n')}
             interactionId: interaction.id,
             description: item.description,
             dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
-            assignedTo: item.owner || 'consultant',
+            assignedToParticipantId: null,
           },
         })
       )

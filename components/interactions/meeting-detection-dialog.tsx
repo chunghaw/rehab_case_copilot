@@ -72,26 +72,46 @@ export function MeetingDetectionDialog({
       const type = detectedMeeting.type || 'IN_PERSON_MEETING';
       const description = detectedMeeting.description || `${type.replace('_', ' ')} scheduled`;
 
+      // Ensure we have valid data
+      if (!description || description.trim().length === 0) {
+        throw new Error('Meeting description is required');
+      }
+
+      // Ensure participantIds is always an array
+      const participantIds = Array.isArray(detectedMeeting.participants) 
+        ? detectedMeeting.participants 
+        : [];
+
       const response = await fetch('/api/interactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           caseId,
           type,
-          participantIds: [], // Will need to be selected by user or extracted
-          textContent: description,
+          participantIds: participantIds, // Always an array
+          textContent: description.trim(),
+          dateTime: scheduledDateTime.toISOString(),
           isScheduled: true,
           scheduledDateTime: scheduledDateTime.toISOString(),
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to schedule meeting');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const errorMessage = errorData.error || errorData.message || 'Failed to schedule meeting';
+        console.error('Meeting scheduling error:', errorMessage, errorData);
+        throw new Error(errorMessage);
+      }
 
+      const result = await response.json();
+      console.log('Meeting scheduled successfully:', result);
+      
       onConfirm();
       onOpenChange(false);
     } catch (error) {
       console.error('Error scheduling meeting:', error);
-      alert('Failed to schedule meeting');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to schedule meeting';
+      alert(errorMessage);
     } finally {
       setLoading(false);
     }

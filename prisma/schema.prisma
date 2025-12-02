@@ -170,3 +170,13 @@ model Participant {
   @@index([role])
   @@schema("rehab_copilot")
 }
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String   // Hashed password
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@schema("rehab_copilot")
+}

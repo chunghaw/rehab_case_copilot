@@ -28,11 +28,12 @@ const updateParticipantSchema = createParticipantSchema.partial().extend({
 // GET /api/cases/[id]/participants - Fetch all participants for a case
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const participants = await prisma.participant.findMany({
-      where: { caseId: params.id },
+      where: { caseId: id },
       orderBy: [
         { role: 'asc' },
         { name: 'asc' },
@@ -52,15 +53,16 @@ export async function GET(
 // POST /api/cases/[id]/participants - Create new participant
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params;
     const body = await request.json();
     const validatedData = createParticipantSchema.parse(body);
 
     // Verify case exists
     const caseExists = await prisma.case.findUnique({
-      where: { id: params.id },
+      where: { id },
     });
 
     if (!caseExists) {
@@ -72,7 +74,7 @@ export async function POST(
 
     const participant = await prisma.participant.create({
       data: {
-        caseId: params.id,
+        caseId: id,
         role: validatedData.role,
         name: validatedData.name,
         email: validatedData.email || null,

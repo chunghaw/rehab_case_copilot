@@ -23,17 +23,18 @@ const updateParticipantSchema = z.object({
 // PATCH /api/cases/[id]/participants/[participantId] - Update participant
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: { id: string; participantId: string } }
+  { params }: { params: Promise<{ id: string; participantId: string }> }
 ) {
   try {
+    const { id, participantId } = await params;
     const body = await request.json();
     const validatedData = updateParticipantSchema.parse(body);
 
     // Verify participant belongs to case
     const participant = await prisma.participant.findFirst({
       where: {
-        id: params.participantId,
-        caseId: params.id,
+        id: participantId,
+        caseId: id,
       },
     });
 
@@ -52,7 +53,7 @@ export async function PATCH(
     if (validatedData.notes !== undefined) updateData.notes = validatedData.notes || null;
 
     const updated = await prisma.participant.update({
-      where: { id: params.participantId },
+      where: { id: participantId },
       data: updateData,
     });
 
@@ -75,14 +76,15 @@ export async function PATCH(
 // DELETE /api/cases/[id]/participants/[participantId] - Delete participant
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string; participantId: string } }
+  { params }: { params: Promise<{ id: string; participantId: string }> }
 ) {
   try {
+    const { id, participantId } = await params;
     // Verify participant belongs to case
     const participant = await prisma.participant.findFirst({
       where: {
-        id: params.participantId,
-        caseId: params.id,
+        id: participantId,
+        caseId: id,
       },
     });
 
@@ -94,7 +96,7 @@ export async function DELETE(
     }
 
     await prisma.participant.delete({
-      where: { id: params.participantId },
+      where: { id: participantId },
     });
 
     return NextResponse.json({ success: true });

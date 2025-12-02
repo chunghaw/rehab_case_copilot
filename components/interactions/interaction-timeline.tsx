@@ -19,6 +19,8 @@ import {
   Plus,
   Edit2,
   X,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react';
 import { MeetingDetectionDialog } from './meeting-detection-dialog';
 
@@ -764,6 +766,7 @@ export function InteractionTimeline({ interactions, onInteractionUpdated, caseId
   const [meetingDialogOpen, setMeetingDialogOpen] = useState(false);
   const [detectedMeeting, setDetectedMeeting] = useState<DetectedMeeting | null>(null);
   const [currentCaseId, setCurrentCaseId] = useState<string | null>(null);
+  const [expandedInteractions, setExpandedInteractions] = useState<Set<string>>(new Set());
   if (interactions.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-card/50 p-12 text-center">
@@ -824,7 +827,7 @@ export function InteractionTimeline({ interactions, onInteractionUpdated, caseId
 
       if (!response.ok) throw new Error('Failed to update interaction');
 
-      // Check for meetings in the transcript
+      // Check for meetings in the transcript (if API exists)
       if (editFormData.transcriptText && caseId) {
         try {
           const response = await fetch('/api/interactions/detect-meetings', {
@@ -840,10 +843,13 @@ export function InteractionTimeline({ interactions, onInteractionUpdated, caseId
               setDetectedMeeting(data.meeting);
               setMeetingDialogOpen(true);
             }
+          } else if (response.status === 404) {
+            // API route doesn't exist, silently skip meeting detection
+            console.log('Meeting detection API not available');
           }
         } catch (error) {
-          console.error('Error detecting meetings:', error);
           // Don't block the save if meeting detection fails
+          console.log('Meeting detection not available:', error);
         }
       }
 
@@ -933,39 +939,120 @@ export function InteractionTimeline({ interactions, onInteractionUpdated, caseId
     }
   };
 
+  const toggleExpanded = (interactionId: string) => {
+    setExpandedInteractions((prev) => {
+      const next = new Set(prev);
+      if (next.has(interactionId)) {
+        next.delete(interactionId);
+      } else {
+        next.add(interactionId);
+      }
+      return next;
+    });
+  };
+
+  const isExpanded = (interactionId: string) => expandedInteractions.has(interactionId);
+
+  // Get preview text from AI summary
+  const getSummaryPreview = (summary: string | null | undefined): string => {
+    if (!summary) return '';
+    const firstSection = summary.split('##')[1];
+    if (!firstSection) return '';
+    const firstLine = firstSection.split('\n').find(line => line.trim() && !line.trim().startsWith('-'));
+    return firstLine ? firstLine.trim().substring(0, 100) + '...' : '';
+  };
+
   return (
     <>
-      <div className="space-y-4">
+      <div className="space-y-3">
         {interactions.map((interaction, index) => {
           const config = getTypeConfig(interaction.type);
           const TypeIcon = config.icon;
+          const expanded = isExpanded(interaction.id);
+          const hasContent = !!(interaction.aiSummary || interaction.transcriptText);
+          const summaryPreview = getSummaryPreview(interaction.aiSummary);
 
           return (
             <div
               key={interaction.id}
-              className="group rounded-2xl border border-border/60 bg-card shadow-soft overflow-hidden hover-lift transition-smooth animate-fade-in-up"
-              style={{ animationDelay: `${index * 0.05}s` }}
+              className="group rounded-xl border border-border/60 bg-card shadow-sm hover:shadow-md transition-all duration-200 animate-fade-in-up overflow-hidden"
+              style={{ animationDelay: `${index * 0.03}s` }}
             >
-              {/* Header */}
-              <div className="p-5 border-b border-border/60">
-                <div className="flex items-start gap-4">
-                  <div className={`flex h-10 w-10 items-center justify-center rounded-xl ring-2 ${config.color}`}>
-                    <TypeIcon className="h-5 w-5" />
+              {/* Compact Header - Always Visible */}
+              <div 
+                className={`p-4 cursor-pointer transition-colors ${expanded ? 'bg-accent/30' : 'hover:bg-accent/20'}`}
+                onClick={() => hasContent && toggleExpanded(interaction.id)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={`flex h-9 w-9 items-center justify-center rounded-lg ring-1 ${config.color} shrink-0`}>
+                    <TypeIcon className="h-4 w-4" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <p className="font-semibold text-foreground">{config.label}</p>
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                          <Clock className="h-3.5 w-3.5" />
-                          {format(new Date(interaction.dateTime), 'EEEE, d MMMM yyyy · h:mm a')}
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-sm text-foreground">{config.label}</p>
+                          {hasContent && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleExpanded(interaction.id);
+                              }}
+                              className="h-6 w-6 p-0 opacity-60 hover:opacity-100"
+                            >
+                              {expanded ? (
+                                <ChevronUp className="h-3.5 w-3.5" />
+                              ) : (
+                                <ChevronDown className="h-3.5 w-3.5" />
+                              )}
+                            </Button>
+                          )}
                         </div>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground mt-1">
+                          <div className="flex items-center gap-1.5">
+                            <Clock className="h-3 w-3" />
+                            {format(new Date(interaction.dateTime), 'd MMM yyyy · h:mm a')}
+                          </div>
+                          {summaryPreview && !expanded && (
+                            <span className="text-muted-foreground/70 truncate max-w-md">
+                              {summaryPreview}
+                            </span>
+                          )}
+                        </div>
+                        {/* Participants - Compact */}
+                        {interaction.participants && interaction.participants.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-2">
+                            {interaction.participants.slice(0, 3).map((participant, i) => {
+                              const displayText = typeof participant === 'string' 
+                                ? participant 
+                                : `${participant.role.replace('_', ' ')}: ${participant.name}`;
+                              return (
+                                <span
+                                  key={typeof participant === 'string' ? i : participant.id || i}
+                                  className="inline-flex items-center rounded-md bg-secondary/60 px-2 py-0.5 text-xs font-medium text-secondary-foreground"
+                                >
+                                  {displayText}
+                                </span>
+                              );
+                            })}
+                            {interaction.participants.length > 3 && (
+                              <span className="inline-flex items-center rounded-md bg-secondary/60 px-2 py-0.5 text-xs font-medium text-secondary-foreground">
+                                +{interaction.participants.length - 3} more
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleEdit(interaction)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleEdit(interaction);
+                          }}
                           className="h-7 px-2 text-xs gap-1"
                         >
                           <Edit className="h-3.5 w-3.5" />
@@ -974,56 +1061,42 @@ export function InteractionTimeline({ interactions, onInteractionUpdated, caseId
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setInteractionToDelete(interaction.id);
                             setDeleteDialogOpen(true);
                           }}
                           className="h-7 px-2 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 gap-1"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
-                          Delete
                         </Button>
                       </div>
                     </div>
-
-                    {/* Participants */}
-                    {interaction.participants && interaction.participants.length > 0 && (
-                      <div className="flex flex-wrap gap-1.5 mt-3">
-                        {interaction.participants.map((participant, i) => {
-                          const displayText = typeof participant === 'string' 
-                            ? participant 
-                            : `${participant.role.replace('_', ' ')}: ${participant.name}`;
-                          return (
-                            <span
-                              key={typeof participant === 'string' ? i : participant.id || i}
-                              className="inline-flex items-center rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground"
-                            >
-                              {displayText}
-                            </span>
-                          );
-                        })}
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
 
-              {/* AI Summary */}
-              {interaction.aiSummary && (
-                <AISummaryDisplay 
-                  summary={interaction.aiSummary} 
-                  interactionId={interaction.id}
-                  onSummaryUpdated={onInteractionUpdated}
-                />
-              )}
+              {/* Expandable Content */}
+              {expanded && hasContent && (
+                <div className="border-t border-border/60 animate-in slide-in-from-top-2 duration-200">
+                  {/* AI Summary */}
+                  {interaction.aiSummary && (
+                    <AISummaryDisplay 
+                      summary={interaction.aiSummary} 
+                      interactionId={interaction.id}
+                      onSummaryUpdated={onInteractionUpdated}
+                    />
+                  )}
 
-              {/* Raw Transcription */}
-              {interaction.transcriptText && (
-                <RawTranscriptionDisplay
-                  transcriptText={interaction.transcriptText}
-                  interactionId={interaction.id}
-                  onTranscriptUpdated={onInteractionUpdated}
-                />
+                  {/* Raw Transcription */}
+                  {interaction.transcriptText && (
+                    <RawTranscriptionDisplay
+                      transcriptText={interaction.transcriptText}
+                      interactionId={interaction.id}
+                      onTranscriptUpdated={onInteractionUpdated}
+                    />
+                  )}
+                </div>
               )}
             </div>
           );

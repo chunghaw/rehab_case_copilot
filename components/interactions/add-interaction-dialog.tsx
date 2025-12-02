@@ -43,6 +43,7 @@ export function AddInteractionDialog({
   const [textData, setTextData] = useState({
     type: 'NOTE',
     textContent: '',
+    dateTime: new Date().toISOString().slice(0, 16), // Format: YYYY-MM-DDTHH:mm
   });
 
   // Summary sections selection
@@ -121,6 +122,7 @@ export function AddInteractionDialog({
         body: JSON.stringify({
           caseId,
           type: textData.type,
+          dateTime: textData.dateTime,
           participantIds: selectedParticipantIds,
           textContent: textData.textContent,
           summarySections: sectionsForAPI,
@@ -131,7 +133,7 @@ export function AddInteractionDialog({
 
       if (!response.ok) throw new Error('Failed to create interaction');
 
-      setTextData({ type: 'NOTE', textContent: '' });
+      setTextData({ type: 'NOTE', textContent: '', dateTime: new Date().toISOString().slice(0, 16) });
       setSelectedParticipantIds([]);
       setOpen(false);
       onInteractionAdded();
@@ -351,23 +353,35 @@ export function AddInteractionDialog({
 
           <TabsContent value="text" className="space-y-4 mt-6">
             <form onSubmit={handleTextSubmit} className="space-y-5">
-              <div className="space-y-2">
-                <Label htmlFor="type" className="text-sm font-medium">Interaction Type</Label>
-                <Select
-                  value={textData.type}
-                  onValueChange={(value) => setTextData({ ...textData, type: value })}
-                >
-                  <SelectTrigger className="h-11">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="NOTE">Note</SelectItem>
-                    <SelectItem value="EMAIL">Email</SelectItem>
-                    <SelectItem value="PHONE_CALL">Phone Call</SelectItem>
-                    <SelectItem value="CASE_CONFERENCE">Case Conference</SelectItem>
-                    <SelectItem value="IN_PERSON_MEETING">In-Person Meeting</SelectItem>
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="type" className="text-sm font-medium">Interaction Type</Label>
+                  <Select
+                    value={textData.type}
+                    onValueChange={(value) => setTextData({ ...textData, type: value })}
+                  >
+                    <SelectTrigger className="h-11">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="NOTE">Note</SelectItem>
+                      <SelectItem value="EMAIL">Email</SelectItem>
+                      <SelectItem value="PHONE_CALL">Phone Call</SelectItem>
+                      <SelectItem value="CASE_CONFERENCE">Case Conference</SelectItem>
+                      <SelectItem value="IN_PERSON_MEETING">In-Person Meeting</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="dateTime" className="text-sm font-medium">Date & Time</Label>
+                  <Input
+                    id="dateTime"
+                    type="datetime-local"
+                    value={textData.dateTime}
+                    onChange={(e) => setTextData({ ...textData, dateTime: e.target.value })}
+                    className="h-11"
+                  />
+                </div>
               </div>
 
               <div className="space-y-2">

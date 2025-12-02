@@ -8,7 +8,7 @@ const createInteractionSchema = z.object({
   caseId: z.string(),
   type: z.enum(['CASE_CONFERENCE', 'PHONE_CALL', 'IN_PERSON_MEETING', 'EMAIL', 'NOTE']),
   dateTime: z.string().optional(),
-  participantIds: z.array(z.string()),
+  participantIds: z.array(z.string()).optional().default([]),
   textContent: z.string().min(1),
   isScheduled: z.boolean().optional().default(false),
   scheduledDateTime: z.string().optional(),
@@ -66,9 +66,12 @@ export async function POST(request: NextRequest) {
     }
 
 
+    // Ensure participantIds is always an array
+    const participantIds = validatedData.participantIds || [];
+
     // Fetch participant details for AI processing
     const participants = await prisma.participant.findMany({
-      where: { id: { in: validatedData.participantIds } },
+      where: { id: { in: participantIds } },
     });
     const participantNames = participants.map(p => `${p.role.replace('_', ' ')}: ${p.name}`);
 
@@ -77,7 +80,10 @@ export async function POST(request: NextRequest) {
       validatedData.textContent,
       validatedData.type,
       participantNames,
-      instructions.length > 0 ? instructions.join('\n') : undefined
+      instructions.length > 0 ? instructions.join('\n') : undefined,
+      validatedData.customSections && validatedData.customSections.length > 0 
+        ? validatedData.customSections 
+        : undefined
     );
 
     // Extract action items
@@ -109,21 +115,54 @@ export async function POST(request: NextRequest) {
       summaryParts.push(`## ${label}\n${summary.agreedActions.map((action) => `- ${action}`).join('\n')}`);
     }
 
-    // Add custom sections
+    // Add custom sections - now the LLM should return them
     if (validatedData.customSections && validatedData.customSections.length > 0) {
       const summaryAny = summary as any;
       validatedData.customSections.forEach((customSectionLabel) => {
-        // Try to find the section in the AI response
+        // Try multiple naming conventions
         const camelCaseName = customSectionLabel
           .replace(/\s+(.)/g, (_, c) => c.toUpperCase())
           .replace(/\s/g, '')
           .replace(/^(.)/, (_, c) => c.toLowerCase());
         
-        if (summaryAny[camelCaseName] && Array.isArray(summaryAny[camelCaseName])) {
-          summaryParts.push(`## ${customSectionLabel}\n${summaryAny[camelCaseName].map((item: string) => `- ${item}`).join('\n')}`);
+        const pascalCaseName = customSectionLabel
+          .replace(/\s+(.)/g, (_, c) => c.toUpperCase())
+          .replace(/\s/g, '');
+        
+        const snakeCaseName = customSectionLabel
+          .toLowerCase()
+          .replace(/\s+/g, '_');
+        
+        // Try to find the section in the AI response
+        let customSectionData = null;
+        if (summaryAny[camelCaseName]) {
+          customSectionData = summaryAny[camelCaseName];
+        } else if (summaryAny[pascalCaseName]) {
+          customSectionData = summaryAny[pascalCaseName];
+        } else if (summaryAny[snakeCaseName]) {
+          customSectionData = summaryAny[snakeCaseName];
+        } else {
+          // Try partial match
+          const lowerLabel = customSectionLabel.toLowerCase();
+          for (const key in summaryAny) {
+            if (key.toLowerCase().includes(lowerLabel) || lowerLabel.includes(key.toLowerCase())) {
+              customSectionData = summaryAny[key];
+              break;
+            }
+          }
+        }
+        
+        if (customSectionData) {
+          if (Array.isArray(customSectionData) && customSectionData.length > 0) {
+            summaryParts.push(`## ${customSectionLabel}\n${customSectionData.map((item: string) => `- ${item}`).join('\n')}`);
+          } else if (typeof customSectionData === 'string' && customSectionData.trim()) {
+            summaryParts.push(`## ${customSectionLabel}\n${customSectionData.trim()}`);
+          } else {
+            summaryParts.push(`## ${customSectionLabel}\n- Not discussed`);
+          }
         } else {
           // If not in response, add a placeholder
-          summaryParts.push(`## ${customSectionLabel}\n- Information to be extracted`);
+          summaryParts.push(`## ${customSectionLabel}\n- Not discussed`);
         }
       });
     }
@@ -138,7 +177,7 @@ export async function POST(request: NextRequest) {
       dateTime: validatedData.isScheduled && validatedData.scheduledDateTime
         ? new Date(validatedData.scheduledDateTime)
         : dateTime,
-      participantIds: validatedData.participantIds,
+      participantIds: participantIds,
       rawInputSource: 'text',
       transcriptText: validatedData.textContent,
       aiSummary: aiSummaryText,

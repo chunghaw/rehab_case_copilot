@@ -15,14 +15,7 @@ export default function RootLayout({
   return (
     <html lang="en" data-theme="classic">
       <body className="antialiased min-h-screen bg-background bg-grain">
-        <div className="flex min-h-screen">
-          <Sidebar />
-          <main className="flex-1 ml-64">
-            <div className="min-h-screen">
-              {children}
-            </div>
-          </main>
-        </div>
+        {children}
       </body>
     </html>
   );
