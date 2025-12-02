@@ -21,16 +21,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Plus, Loader2, Calendar } from 'lucide-react';
+import { Task } from '@/lib/types/task';
 
 interface TaskFormProps {
   caseId: string;
-  task?: {
-    id: string;
-    description: string;
-    dueDate?: Date | null;
-    status: string;
-    assignedTo: string;
-  } | null;
+  task?: Task | null;
   onTaskSaved: () => void;
 }
 
@@ -40,7 +35,6 @@ export function TaskForm({ caseId, task, onTaskSaved }: TaskFormProps) {
   const [formData, setFormData] = useState({
     description: task?.description || '',
     dueDate: task?.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : '',
-    assignedTo: task?.assignedTo || 'consultant',
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -57,7 +51,6 @@ export function TaskForm({ caseId, task, onTaskSaved }: TaskFormProps) {
             id: task.id,
             description: formData.description,
             dueDate: formData.dueDate || null,
-            assignedTo: formData.assignedTo,
           }),
         });
 
@@ -71,7 +64,6 @@ export function TaskForm({ caseId, task, onTaskSaved }: TaskFormProps) {
             caseId,
             description: formData.description,
             dueDate: formData.dueDate || null,
-            assignedTo: formData.assignedTo,
           }),
         });
 
@@ -79,7 +71,7 @@ export function TaskForm({ caseId, task, onTaskSaved }: TaskFormProps) {
       }
 
       setOpen(false);
-      setFormData({ description: '', dueDate: '', assignedTo: 'consultant' });
+      setFormData({ description: '', dueDate: '' });
       onTaskSaved();
     } catch (error) {
       console.error('Error saving task:', error);
@@ -130,24 +122,6 @@ export function TaskForm({ caseId, task, onTaskSaved }: TaskFormProps) {
               value={formData.dueDate}
               onChange={(e) => setFormData({ ...formData, dueDate: e.target.value })}
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="assignedTo">Assigned To</Label>
-            <Select
-              value={formData.assignedTo}
-              onValueChange={(value) => setFormData({ ...formData, assignedTo: value })}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="consultant">Consultant</SelectItem>
-                <SelectItem value="insurer">Insurer</SelectItem>
-                <SelectItem value="employer">Employer</SelectItem>
-                <SelectItem value="worker">Worker</SelectItem>
-              </SelectContent>
-            </Select>
           </div>
 
           <DialogFooter>
