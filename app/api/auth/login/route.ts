@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { prisma, withRetry } from '@/lib/db/prisma';
 import { verifyPassword } from '@/lib/auth';
 import { z } from 'zod';
 import { cookies } from 'next/headers';
@@ -14,10 +14,14 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { username, password } = loginSchema.parse(body);
 
-    // Find user by username
-    const user = await prisma.user.findUnique({
-      where: { username },
-    });
+    // Find user by username with retry logic for connection issues
+    const user = await withRetry(
+      () => prisma.user.findUnique({
+        where: { username },
+      }),
+      3,
+      1000
+    );
 
     if (!user) {
       return NextResponse.json(
