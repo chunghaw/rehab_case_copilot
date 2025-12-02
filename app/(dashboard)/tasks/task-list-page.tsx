@@ -14,17 +14,9 @@ import {
 import { Input } from '@/components/ui/input';
 import { Loader2, CalendarClock, Search, Filter } from 'lucide-react';
 import Link from 'next/link';
+import { Task } from '@/lib/types/task';
 
-interface Task {
-  id: string;
-  description: string;
-  dueDate?: Date | null;
-  status: string;
-  assignedToParticipant?: {
-    id: string;
-    role: string;
-    name: string;
-  } | null;
+interface TaskWithCase extends Task {
   case: {
     id: string;
     workerName: string;
@@ -34,7 +26,7 @@ interface Task {
 
 export function TaskListPage() {
   const [loading, setLoading] = useState(true);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [tasks, setTasks] = useState<TaskWithCase[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCase, setFilterCase] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -49,7 +41,13 @@ export function TaskListPage() {
       const response = await fetch(`/api/tasks?${params.toString()}`);
       if (!response.ok) throw new Error('Failed to fetch tasks');
       const data = await response.json();
-      setTasks(data.tasks || []);
+      // Transform tasks to ensure status is the correct type
+      const transformedTasks: TaskWithCase[] = (data.tasks || []).map((task: any) => ({
+        ...task,
+        status: task.status as 'PENDING' | 'DONE' | 'OVERDUE',
+        dueDate: task.dueDate ? new Date(task.dueDate) : null,
+      }));
+      setTasks(transformedTasks);
     } catch (error) {
       console.error('Error fetching tasks:', error);
     } finally {
@@ -101,7 +99,7 @@ export function TaskListPage() {
     }
     acc[caseId].tasks.push(task);
     return acc;
-  }, {} as Record<string, { case: Task['case']; tasks: Task[] }>);
+  }, {} as Record<string, { case: TaskWithCase['case']; tasks: Task[] }>);
 
   if (loading) {
     return (
@@ -196,27 +194,30 @@ export function TaskListPage() {
           </div>
         ) : (
           <div className="space-y-6">
-            {Object.values(tasksByCase).map(({ case: caseItem, tasks: caseTasks }) => (
-              <div key={caseItem.id} className="space-y-2">
-                <div className="flex items-center gap-2 mb-2">
-                  <Link
-                    href={`/cases/${caseItem.id}`}
-                    className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
-                  >
-                    {caseItem.workerName} - Claim #{caseItem.claimNumber}
-                  </Link>
-                  <span className="text-xs text-muted-foreground">
-                    ({caseTasks.length} task{caseTasks.length !== 1 ? 's' : ''})
-                  </span>
+            {Object.values(tasksByCase).map(({ case: caseItem, tasks: caseTasks }) => {
+              if (!caseItem) return null;
+              return (
+                <div key={caseItem.id} className="space-y-2">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Link
+                      href={`/cases/${caseItem.id}`}
+                      className="text-sm font-semibold text-foreground hover:text-primary transition-colors"
+                    >
+                      {caseItem.workerName} - Claim #{caseItem.claimNumber}
+                    </Link>
+                    <span className="text-xs text-muted-foreground">
+                      ({caseTasks.length} task{caseTasks.length !== 1 ? 's' : ''})
+                    </span>
+                  </div>
+                  <TaskList
+                    tasks={caseTasks}
+                    caseId={caseItem.id}
+                    onTaskUpdate={handleTaskUpdate}
+                    onTaskSaved={fetchTasks}
+                  />
                 </div>
-                <TaskList
-                  tasks={caseTasks}
-                  caseId={caseItem.id}
-                  onTaskUpdate={handleTaskUpdate}
-                  onTaskSaved={fetchTasks}
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

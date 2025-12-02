@@ -12,6 +12,7 @@ import {
 import { Building2, User, Briefcase, Users, Phone, Mail, Loader2, Edit2, Check, X } from 'lucide-react';
 import { ParticipantEditor } from './participant-editor';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
 
 interface CaseOverviewProps {
@@ -147,6 +148,30 @@ export function CaseOverview({ caseData, onStatusChange }: CaseOverviewProps) {
       console.error('Error updating employer name:', error);
       alert('Failed to update employer name');
       setEmployerName(caseData.employerName); // Revert on error
+    } finally {
+      setSavingName(false);
+    }
+  };
+
+  const handleSaveCapacity = async () => {
+    setSavingName(true);
+    try {
+      const response = await fetch(`/api/cases/${caseData.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ currentCapacitySummary: currentCapacity.trim() || null }),
+      });
+
+      if (!response.ok) throw new Error('Failed to update current capacity');
+
+      setEditingCapacity(false);
+      if (onStatusChange) {
+        onStatusChange();
+      }
+    } catch (error) {
+      console.error('Error updating current capacity:', error);
+      alert('Failed to update current capacity');
+      setCurrentCapacity(caseData.currentCapacitySummary || ''); // Revert on error
     } finally {
       setSavingName(false);
     }

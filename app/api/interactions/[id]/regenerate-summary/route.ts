@@ -269,13 +269,14 @@ export async function POST(
       if (isFromSummary && validatedData.editedContent) {
         // When regenerating from edited summary, extract custom sections directly from the edited content
         // This preserves user-added sections that the AI might not return
+        const editedContent = validatedData.editedContent; // Store in local variable for type narrowing
         storedCustomSections.forEach((customSectionLabel) => {
           // Escape special regex characters in the label
           const escapedLabel = customSectionLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
           
           // Extract custom section content directly from edited summary
           // Split content by sections first to make extraction more reliable
-          const sections = validatedData.editedContent.split(/^##\s+/gm);
+          const sections = editedContent.split(/^##\s+/gm);
           let sectionContent = null;
           
           // Normalize the label for comparison (trim and lowercase)
@@ -309,7 +310,7 @@ export async function POST(
             ];
             
             for (const pattern of patterns) {
-              const match = validatedData.editedContent.match(pattern);
+              const match = editedContent.match(pattern);
               if (match && match[1]) {
                 sectionContent = match[1].trim();
                 if (sectionContent) break;

@@ -226,7 +226,7 @@ export async function POST(request: NextRequest) {
             interactionId: interaction.id,
             description: item.description,
             dueDate: item.dueDate ? new Date(item.dueDate) : undefined,
-            assignedTo: item.owner || 'consultant',
+            assignedToParticipantId: null,
           },
         })
       )

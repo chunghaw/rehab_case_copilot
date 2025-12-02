@@ -14,18 +14,7 @@ import { format, isPast } from 'date-fns';
 import { CalendarClock, CheckCircle2, AlertTriangle, Clock, Trash2, Pencil } from 'lucide-react';
 import { TaskForm } from './task-form';
 import { useState } from 'react';
-
-interface Task {
-  id: string;
-  description: string;
-  dueDate?: Date | null;
-  status: 'PENDING' | 'DONE' | 'OVERDUE';
-  assignedToParticipant?: {
-    id: string;
-    role: string;
-    name: string;
-  } | null;
-}
+import { Task } from '@/lib/types/task';
 
 interface TaskListProps {
   tasks: Task[];
