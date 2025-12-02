@@ -14,6 +14,7 @@ interface CalendarEvent {
   isScheduled?: boolean;
   scheduledDateTime?: Date | null;
   case?: {
+    id: string;
     workerName: string;
     claimNumber: string;
   };
