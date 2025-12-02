@@ -5,7 +5,7 @@ const prisma = new PrismaClient();
 
 async function main() {
   const username = process.env.SEED_USERNAME || 'shuyi';
-  const password = process.env.SEED_PASSWORD || 'oscar';
+  const password = process.env.SEED_PASSWORD || 'chunghaw96';
 
   // Check if user already exists
   const existingUser = await prisma.user.findUnique({

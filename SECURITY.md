@@ -147,7 +147,7 @@ This application uses a **basic session-based authentication** system suitable f
 
 **Default User:**
 - Username: `shuyi`
-- Password: `oscar`
+- Password: `chunghaw96`
 
 **⚠️ IMPORTANT**: Change these credentials immediately in production!
 
