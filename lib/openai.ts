@@ -13,9 +13,21 @@ export const openai = new OpenAI({
 // ============================================================================
 export async function transcribeAudio(audioBuffer: Buffer, filename: string): Promise<string> {
   try {
+    // Determine MIME type based on filename
+    let mimeType = 'audio/mpeg'; // default
+    if (filename.endsWith('.mp3')) {
+      mimeType = 'audio/mpeg';
+    } else if (filename.endsWith('.m4a')) {
+      mimeType = 'audio/m4a';
+    } else if (filename.endsWith('.webm')) {
+      mimeType = 'audio/webm';
+    } else if (filename.endsWith('.wav')) {
+      mimeType = 'audio/wav';
+    }
+
     // Create a File object from the buffer
     const file = new File([audioBuffer as any], filename, {
-      type: filename.endsWith('.mp3') ? 'audio/mpeg' : 'audio/m4a',
+      type: mimeType,
     });
 
     const transcription = await openai.audio.transcriptions.create({
@@ -45,7 +57,8 @@ export interface InteractionSummary {
 export async function summarizeInteraction(
   transcript: string,
   interactionType: string,
-  participants: string[]
+  participants: string[],
+  customInstructions?: string
 ): Promise<InteractionSummary> {
   try {
     const response = await openai.chat.completions.create({
@@ -76,6 +89,8 @@ When summarizing interactions, organize information into these categories:
 
 Transcript/Content:
 ${transcript}
+
+${customInstructions ? `\nSPECIFIC FOCUS AREAS:\n${customInstructions}\n` : ''}
 
 Provide a structured summary in JSON format with these fields:
 {
@@ -168,6 +183,91 @@ If no action items are found, return an empty array.`,
   } catch (error) {
     console.error('Error extracting action items:', error);
     return [];
+  }
+}
+
+// ============================================================================
+// Detect meetings mentioned in interaction text
+// ============================================================================
+export interface DetectedMeeting {
+  date?: string;
+  time?: string;
+  type?: 'IN_PERSON_MEETING' | 'PHONE_CALL' | 'CASE_CONFERENCE';
+  description?: string;
+  participants?: string[];
+}
+
+export async function detectMeetings(transcript: string): Promise<DetectedMeeting | null> {
+  // First, do keyword-based detection
+  const meetingKeywords = [
+    'meeting', 'schedule', 'scheduled', 'appointment', 'conference',
+    'next monday', 'next tuesday', 'next wednesday', 'next thursday', 'next friday',
+    'on monday', 'on tuesday', 'on wednesday', 'on thursday', 'on friday',
+    'this monday', 'this tuesday', 'this wednesday', 'this thursday', 'this friday',
+    'tomorrow', 'next week', 'this week', 'follow-up', 'follow up'
+  ];
+
+  const lowerTranscript = transcript.toLowerCase();
+  const hasMeetingKeywords = meetingKeywords.some(keyword => lowerTranscript.includes(keyword));
+
+  if (!hasMeetingKeywords) {
+    return null;
+  }
+
+  // Use AI to extract structured meeting information
+  try {
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        {
+          role: 'system',
+          content: `You are a meeting detection assistant. Your role is to identify if a meeting, call, or conference is mentioned in the text, and extract:
+- Date (if mentioned, format as YYYY-MM-DD or relative like "next Monday")
+- Time (if mentioned, format as HH:MM)
+- Type (IN_PERSON_MEETING, PHONE_CALL, or CASE_CONFERENCE)
+- Description (brief summary of what the meeting is about)
+- Participants (if mentioned)
+
+Only return a meeting if there is a clear mention of scheduling a future meeting, call, or conference. Return null if no meeting is detected.`,
+        },
+        {
+          role: 'user',
+          content: `Analyze this text and detect if a meeting is mentioned:
+
+${transcript}
+
+Return JSON format:
+{
+  "date": "YYYY-MM-DD or relative date like 'next Monday'",
+  "time": "HH:MM or null",
+  "type": "IN_PERSON_MEETING | PHONE_CALL | CASE_CONFERENCE or null",
+  "description": "brief description or null",
+  "participants": ["array of participant names or empty array"]
+}
+
+If no meeting is clearly mentioned, return null.`,
+        },
+      ],
+      temperature: 0.2,
+      response_format: { type: 'json_object' },
+    });
+
+    const content = response.choices[0].message.content;
+    if (!content) {
+      return null;
+    }
+
+    const parsed = JSON.parse(content);
+    
+    // Return null if no meaningful meeting data
+    if (!parsed.date && !parsed.time && !parsed.type) {
+      return null;
+    }
+
+    return parsed as DetectedMeeting;
+  } catch (error) {
+    console.error('Error detecting meetings:', error);
+    return null;
   }
 }
 

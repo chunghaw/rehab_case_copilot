@@ -12,10 +12,10 @@ export async function POST(request: NextRequest) {
     const audioFile = formData.get('audio') as File;
     const caseId = formData.get('caseId') as string;
     const type = formData.get('type') as string;
-    const participants = formData.get('participants') as string;
+    const participantIdsStr = formData.get('participantIds') as string;
     const dateTimeStr = formData.get('dateTime') as string;
 
-    if (!audioFile || !caseId || !type || !participants) {
+    if (!audioFile || !caseId || !type || !participantIdsStr) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
@@ -31,8 +31,14 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const participantsArray = JSON.parse(participants);
+    const participantIds = JSON.parse(participantIdsStr);
     const dateTime = dateTimeStr ? new Date(dateTimeStr) : new Date();
+
+    // Fetch participant details for AI processing
+    const participants = await prisma.participant.findMany({
+      where: { id: { in: participantIds } },
+    });
+    const participantNames = participants.map(p => `${p.role.replace('_', ' ')}: ${p.name}`);
 
     // Upload to Vercel Blob (if token is available)
     let blobUrl: string | undefined;
@@ -51,10 +57,10 @@ export async function POST(request: NextRequest) {
     const transcript = await transcribeAudio(buffer, audioFile.name);
 
     // Summarize the interaction
-    const summary = await summarizeInteraction(transcript, type, participantsArray);
+    const summary = await summarizeInteraction(transcript, type, participantNames);
 
     // Extract action items
-    const actionItems = await extractActionItems(transcript, participantsArray);
+    const actionItems = await extractActionItems(transcript, participantNames);
 
     // Format the AI summary as text
     const aiSummaryText = `
@@ -80,7 +86,7 @@ ${summary.agreedActions.map((action) => `- ${action}`).join('\n')}
         caseId,
         type: type as any,
         dateTime,
-        participants: participantsArray,
+        participantIds: participantIds,
         rawInputSource: blobUrl || 'audio file (not stored)',
         transcriptText: transcript,
         aiSummary: aiSummaryText,
@@ -103,9 +109,17 @@ ${summary.agreedActions.map((action) => `- ${action}`).join('\n')}
       )
     );
 
+    // Fetch participant details for response
+    const interactionParticipants = await prisma.participant.findMany({
+      where: { id: { in: interaction.participantIds } },
+    });
+
     return NextResponse.json(
       {
-        interaction,
+        interaction: {
+          ...interaction,
+          participants: interactionParticipants,
+        },
         tasks,
         summary,
         transcript,

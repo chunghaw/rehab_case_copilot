@@ -14,7 +14,17 @@ const generateReportSchema = z.object({
     'CLOSURE',
   ]),
   interactionIds: z.array(z.string()).optional(),
-  extraContext: z.string().optional(),  controls: z.object({
+  extraContext: z.string().optional(),
+  summarySections: z.object({
+    mainIssues: z.boolean().optional(),
+    currentCapacity: z.boolean().optional(),
+    treatmentAndMedical: z.boolean().optional(),
+    barriersToRTW: z.boolean().optional(),
+    agreedActions: z.boolean().optional(),
+  }).optional(),
+  customSections: z.array(z.string()).optional(),
+  sectionLabels: z.record(z.string(), z.string()).optional(),
+  controls: z.object({
     tone: z.enum(['neutral', 'supportive', 'assertive']).default('neutral'),
     length: z.enum(['short', 'standard', 'extended']).default('standard'),
     audience: z
@@ -75,20 +85,69 @@ export async function POST(request: NextRequest) {
       currentCapacitySummary: caseData.currentCapacitySummary || undefined,
     };
 
+    // Fetch participants for all interactions
+    const allParticipantIds = interactions.flatMap(i => i.participantIds || []);
+    const participantsMap = new Map();
+    if (allParticipantIds.length > 0) {
+      const uniqueIds = [...new Set(allParticipantIds)];
+      const participants = await prisma.participant.findMany({
+        where: { id: { in: uniqueIds } },
+      });
+      participants.forEach(p => {
+        participantsMap.set(p.id, `${p.role.replace('_', ' ')}: ${p.name}`);
+      });
+    }
+
     // Prepare interaction data
     const interactionData = interactions.map((i) => ({
       dateTime: format(i.dateTime, 'dd/MM/yyyy HH:mm'),
       type: i.type,
       aiSummary: i.aiSummary || undefined,
-      participants: i.participants,
+      participants: (i.participantIds || []).map(id => participantsMap.get(id)).filter(Boolean),
     }));
+
+    // Build section instructions if sections are specified
+    let sectionInstructions = '';
+    if (validatedData.summarySections || validatedData.customSections) {
+      const instructions: string[] = [];
+      
+      if (validatedData.summarySections) {
+        const sections = validatedData.summarySections;
+        if (sections.mainIssues === false) instructions.push('Do not include main issues section');
+        if (sections.currentCapacity === false) instructions.push('Do not include current capacity section');
+        if (sections.treatmentAndMedical === false) instructions.push('Do not include treatment and medical section');
+        if (sections.barriersToRTW === false) instructions.push('Do not include barriers to RTW section');
+        if (sections.agreedActions === false) instructions.push('Do not include agreed actions section');
+      }
+
+      if (validatedData.customSections && validatedData.customSections.length > 0) {
+        instructions.push(`Additionally, include these custom sections: ${validatedData.customSections.join(', ')}. For each custom section, extract relevant information and format appropriately.`);
+      }
+
+      if (validatedData.sectionLabels && Object.keys(validatedData.sectionLabels).length > 0) {
+        const labelInstructions = Object.entries(validatedData.sectionLabels)
+          .map(([key, label]) => `Use "${label}" as the label for the ${key} section`)
+          .join('. ');
+        instructions.push(labelInstructions);
+      }
+
+      if (instructions.length > 0) {
+        sectionInstructions = '\n\nSection Requirements:\n' + instructions.join('\n');
+      }
+    }
+
+    // Combine extra context with section instructions
+    const combinedContext = validatedData.extraContext
+      ? validatedData.extraContext + sectionInstructions
+      : sectionInstructions || undefined;
 
     // Generate the report
     const reportContent = await generateReport(
       validatedData.reportType,
       caseContext,
       interactionData,
-      validatedData.controls
+      validatedData.controls,
+      combinedContext
     );
 
     // Save the report

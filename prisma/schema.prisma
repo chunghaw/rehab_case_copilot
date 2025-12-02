@@ -19,7 +19,7 @@ enum CaseStatus {
   ACTIVE
   ON_HOLD
   CLOSED
-  
+
   @@schema("rehab_copilot")
 }
 
@@ -29,7 +29,7 @@ enum InteractionType {
   IN_PERSON_MEETING
   EMAIL
   NOTE
-  
+
   @@schema("rehab_copilot")
 }
 
@@ -37,7 +37,7 @@ enum TaskStatus {
   PENDING
   DONE
   OVERDUE
-  
+
   @@schema("rehab_copilot")
 }
 
@@ -47,86 +47,126 @@ enum ReportType {
   CASE_CONFERENCE
   INITIAL_NEEDS_ASSESSMENT
   CLOSURE
-  
+
+  @@schema("rehab_copilot")
+}
+
+enum ParticipantRole {
+  INSURER_CM
+  EMPLOYER
+  GP
+  SPECIALIST
+  PHYSIO
+  CONSULTANT
+  OTHER
+
   @@schema("rehab_copilot")
 }
 
 model Case {
-  id                       String   @id @default(cuid())
-  workerName               String
-  workerInitials           String?
-  claimNumber              String   @unique
-  insurerName              String
-  employerName             String
-  keyContacts              Json
-  status                   CaseStatus @default(ACTIVE)
-  currentCapacitySummary   String?    @db.Text
-  nextKeyDate              DateTime?
-  createdAt                DateTime   @default(now())
-  updatedAt                DateTime   @updatedAt
-  interactions             Interaction[]
-  tasks                    Task[]
-  reports                  Report[]
-  
+  id                     String        @id @default(cuid())
+  workerName             String
+  workerInitials         String?
+  claimNumber            String        @unique
+  insurerName            String
+  employerName           String
+  keyContacts            Json
+  status                 CaseStatus    @default(ACTIVE)
+  currentCapacitySummary String?       @db.Text
+  nextKeyDate            DateTime?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+  interactions           Interaction[]
+  tasks                  Task[]
+  reports                Report[]
+  participants           Participant[]
+
   @@index([status])
   @@index([nextKeyDate])
   @@schema("rehab_copilot")
 }
 
 model Interaction {
-  id                  String          @id @default(cuid())
-  caseId              String
-  dateTime            DateTime        @default(now())
-  type                InteractionType
-  participants        String[]
-  rawInputSource      String?
-  transcriptText      String?         @db.Text
-  aiSummary           String?         @db.Text
-  aiActionItems       Json?
-  createdAt           DateTime        @default(now())
-  updatedAt           DateTime        @updatedAt
-  case                Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  tasks               Task[]
-  
+  id                String          @id @default(cuid())
+  caseId            String
+  dateTime          DateTime        @default(now())
+  type              InteractionType
+  participantIds    String[]
+  rawInputSource    String?
+  transcriptText    String?         @db.Text
+  aiSummary         String?         @db.Text
+  aiActionItems     Json?
+  summarySections   Json?           // Store which sections were selected
+  customSections    Json?           // Store custom sections
+  sectionLabels     Json?           // Store custom section labels
+  isScheduled       Boolean         @default(false)
+  scheduledDateTime DateTime?
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  case              Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tasks             Task[]
+
   @@index([caseId])
   @@index([dateTime])
   @@index([type])
+  @@index([isScheduled])
+  @@index([scheduledDateTime])
   @@schema("rehab_copilot")
 }
 
 model Task {
-  id              String      @id @default(cuid())
-  caseId          String
-  interactionId   String?
-  description     String
-  dueDate         DateTime?
-  status          TaskStatus  @default(PENDING)
-  assignedTo      String      @default("consultant")
-  createdAt       DateTime    @default(now())
-  updatedAt       DateTime    @updatedAt
-  case            Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  interaction     Interaction? @relation(fields: [interactionId], references: [id], onDelete: SetNull)
-  
+  id                      String       @id @default(cuid())
+  caseId                  String
+  interactionId           String?
+  description             String
+  dueDate                 DateTime?
+  status                  TaskStatus   @default(PENDING)
+  assignedToParticipantId String?
+  createdAt               DateTime     @default(now())
+  updatedAt               DateTime     @updatedAt
+  case                    Case         @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  interaction             Interaction? @relation(fields: [interactionId], references: [id], onDelete: SetNull)
+  assignedToParticipant   Participant? @relation("TaskToAssignedParticipant", fields: [assignedToParticipantId], references: [id], onDelete: SetNull)
+
   @@index([caseId])
   @@index([status])
   @@index([dueDate])
+  @@index([assignedToParticipantId])
   @@schema("rehab_copilot")
 }
 
 model Report {
-  id                          String     @id @default(cuid())
-  caseId                      String
-  type                        ReportType
-  title                       String
-  contentDraft                String     @db.Text
-  generatedFromInteractions   String[]
-  generationControls          Json?
-  createdAt                   DateTime   @default(now())
-  updatedAt                   DateTime   @updatedAt
-  case                        Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
-  
+  id                        String     @id @default(cuid())
+  caseId                    String
+  type                      ReportType
+  title                     String
+  contentDraft              String     @db.Text
+  generatedFromInteractions String[]
+  generationControls        Json?
+  createdAt                 DateTime   @default(now())
+  updatedAt                 DateTime   @updatedAt
+  case                      Case       @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
   @@index([caseId])
   @@index([type])
   @@index([createdAt])
+  @@schema("rehab_copilot")
+}
+
+model Participant {
+  id            String          @id @default(cuid())
+  caseId        String
+  role          ParticipantRole
+  name          String
+  email         String?
+  phone         String?
+  notes         String?         @db.Text
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  case          Case            @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  assignedTasks Task[] @relation("TaskToAssignedParticipant")
+
+  @@index([caseId])
+  @@index([role])
   @@schema("rehab_copilot")
 }

@@ -91,8 +91,7 @@ RECENT INTERACTIONS (last 4-6 weeks):
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-
-${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : ''}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -138,8 +137,7 @@ RELEVANT INTERACTIONS:
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-
-${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : ''}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -185,8 +183,7 @@ CONFERENCE SUMMARY:
 ${interaction.aiSummary || 'No summary available'}
 
 REPORT REQUIREMENTS:
-
-${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : ''}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 
@@ -231,8 +228,7 @@ CASE HISTORY:
 ${interactionsSummary}
 
 REPORT REQUIREMENTS:
-
-${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : '}- Tone: ${controls.tone}
+${extraContext ? `\nADDITIONAL CONTEXT AND INSTRUCTIONS:\n${extraContext}\n` : ''}- Tone: ${controls.tone}
 - Length: ${controls.length}
 - Audience: ${controls.audience}
 

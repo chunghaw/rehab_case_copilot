@@ -18,124 +18,194 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Card, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { FileText, Loader2, Calendar, Users } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { FileText, Loader2, Sparkles, FileStack, Users, Gauge, MessageSquare, FileEdit, Edit2, Save, X, Plus } from 'lucide-react';
 import { format } from 'date-fns';
-import { toast } from 'sonner';
+import { Input } from '@/components/ui/input';
 
 interface Interaction {
   id: string;
   type: string;
-  dateTime: Date | string;
+  dateTime: Date;
   participants: string[];
   aiSummary?: string | null;
 }
 
 interface ReportGeneratorProps {
   caseId: string;
-  interactions?: Interaction[];
   onReportGenerated: (report: any) => void;
 }
 
-const getTypeLabel = (type: string) => {
-  return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-};
-
-const getTypeIcon = (type: string) => {
-  switch (type) {
-    case 'PHONE_CALL':
-      return '📞';
-    case 'CASE_CONFERENCE':
-      return '🎥';
-    case 'IN_PERSON_MEETING':
-      return '👥';
-    case 'EMAIL':
-      return '✉️';
-    default:
-      return '📝';
-  }
-};
-
-export function ReportGenerator({ caseId, interactions = [], onReportGenerated }: ReportGeneratorProps) {
+export function ReportGenerator({ caseId, onReportGenerated }: ReportGeneratorProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [selectedInteractionIds, setSelectedInteractionIds] = useState<string[]>([]);
-  const [extraContext, setExtraContext] = useState('');
+  const [interactions, setInteractions] = useState<Interaction[]>([]);
+  const [loadingInteractions, setLoadingInteractions] = useState(false);
   const [formData, setFormData] = useState({
     reportType: 'PROGRESS_REPORT',
     tone: 'neutral',
     length: 'standard',
     audience: 'mixed',
+    selectedInteractionIds: [] as string[],
+    extraContext: '',
   });
+  const [showSectionOptions, setShowSectionOptions] = useState(false);
+  const [reportPoints, setReportPoints] = useState<Array<{ id: string; label: string; enabled: boolean }>>([
+    { id: 'main-issues', label: 'Main Issues', enabled: true },
+    { id: 'current-capacity', label: 'Current Capacity & Duties', enabled: true },
+    { id: 'treatment-medical', label: 'Treatment & Medical Input', enabled: true },
+    { id: 'barriers-rtw', label: 'Barriers to RTW', enabled: true },
+    { id: 'agreed-actions', label: 'Agreed Actions', enabled: true },
+  ]);
+  const [editingSection, setEditingSection] = useState<string | null>(null);
+  const [newSectionName, setNewSectionName] = useState('');
 
-  // Select all interactions by default when dialog opens
+  // Fetch interactions when dialog opens
   useEffect(() => {
-    if (open && interactions.length > 0) {
-      setSelectedInteractionIds(interactions.map(i => i.id));
-    }
-  }, [open, interactions]);
+    if (open && caseId) {
+      setLoadingInteractions(true);
+      fetch(`/api/interactions?caseId=${caseId}`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (data.interactions) {
+            setInteractions(data.interactions);
+          }
+        })
+        .catch((error) => {
+          console.error('Error fetching interactions:', error);
+        })
+        .finally(() => {
+          setLoadingInteractions(false);
+        });
 
-  const handleToggleInteraction = (interactionId: string) => {
-    setSelectedInteractionIds(prev =>
-      prev.includes(interactionId)
-        ? prev.filter(id => id !== interactionId)
-        : [...prev, interactionId]
-    );
+      // Load saved report points from localStorage
+      const saved = localStorage.getItem(`report-points-${caseId}`);
+      if (saved) {
+        try {
+          const savedData = JSON.parse(saved);
+          if (savedData.points && Array.isArray(savedData.points)) {
+            setReportPoints(savedData.points);
+          }
+        } catch (e) {
+          console.error('Error loading saved report points:', e);
+        }
+      }
+    }
+  }, [open, caseId]);
+
+  // Reset form when dialog closes
+  useEffect(() => {
+    if (!open) {
+      setFormData({
+        reportType: 'PROGRESS_REPORT',
+        tone: 'neutral',
+        length: 'standard',
+        audience: 'mixed',
+        selectedInteractionIds: [],
+        extraContext: '',
+      });
+      setReportPoints([
+        { id: 'main-issues', label: 'Main Issues', enabled: true },
+        { id: 'current-capacity', label: 'Current Capacity & Duties', enabled: true },
+        { id: 'treatment-medical', label: 'Treatment & Medical Input', enabled: true },
+        { id: 'barriers-rtw', label: 'Barriers to RTW', enabled: true },
+        { id: 'agreed-actions', label: 'Agreed Actions', enabled: true },
+      ]);
+      setNewSectionName('');
+      setEditingSection(null);
+      setShowSectionOptions(false);
+    }
+  }, [open]);
+
+  const handleInteractionToggle = (interactionId: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      selectedInteractionIds: prev.selectedInteractionIds.includes(interactionId)
+        ? prev.selectedInteractionIds.filter((id) => id !== interactionId)
+        : [...prev.selectedInteractionIds, interactionId],
+    }));
   };
 
   const handleSelectAll = () => {
-    if (selectedInteractionIds.length === interactions.length) {
-      setSelectedInteractionIds([]);
+    if (formData.selectedInteractionIds.length === interactions.length) {
+      setFormData((prev) => ({ ...prev, selectedInteractionIds: [] }));
     } else {
-      setSelectedInteractionIds(interactions.map(i => i.id));
+      setFormData((prev) => ({
+        ...prev,
+        selectedInteractionIds: interactions.map((i) => i.id),
+      }));
     }
   };
 
   const handleGenerate = async () => {
-    if (selectedInteractionIds.length === 0 && !extraContext.trim()) {
-      toast.error('Please select at least one interaction or provide extra context');
-      return;
-    }
-
     setLoading(true);
 
     try {
+      const requestBody: any = {
+        caseId,
+        reportType: formData.reportType,
+        controls: {
+          tone: formData.tone,
+          length: formData.length,
+          audience: formData.audience,
+        },
+      };
+
+      // Include selected interactions if any are selected
+      if (formData.selectedInteractionIds.length > 0) {
+        requestBody.interactionIds = formData.selectedInteractionIds;
+      }
+
+      // Include extra context if provided
+      if (formData.extraContext.trim()) {
+        requestBody.extraContext = formData.extraContext.trim();
+      }
+
+      // Build report points - only include enabled ones
+      const enabledPoints = reportPoints.filter(p => p.enabled);
+      const customSectionsList = enabledPoints.map(p => p.label);
+      const sectionLabels: Record<string, string> = {};
+      enabledPoints.forEach((point) => {
+        sectionLabels[point.id] = point.label;
+      });
+
+      // Include sections in request
+      if (customSectionsList.length > 0) {
+        requestBody.customSections = customSectionsList;
+        requestBody.sectionLabels = sectionLabels;
+      }
+
       const response = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          caseId,
-          reportType: formData.reportType,
-          interactionIds: selectedInteractionIds.length > 0 ? selectedInteractionIds : undefined,
-          extraContext: extraContext.trim() || undefined,
-          controls: {
-            tone: formData.tone,
-            length: formData.length,
-            audience: formData.audience,
-          },
-        }),
+        body: JSON.stringify(requestBody),
       });
 
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate report');
-      }
+      if (!response.ok) throw new Error('Failed to generate report');
 
       const { report } = await response.json();
       setOpen(false);
-      setExtraContext('');
-      toast.success('Report generated successfully!');
       onReportGenerated(report);
-    } catch (error: any) {
+    } catch (error) {
       console.error('Error generating report:', error);
-      toast.error(error.message || 'Failed to generate report');
+      alert('Failed to generate report');
     } finally {
       setLoading(false);
     }
   };
+
+  const getTypeLabel = (type: string) => {
+    return type.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  };
+
+  const reportTypes = [
+    { value: 'PROGRESS_REPORT', label: 'Progress Report' },
+    { value: 'RTW_PLAN', label: 'RTW Plan' },
+    { value: 'CASE_CONFERENCE', label: 'Case Conference Minutes' },
+    { value: 'INITIAL_NEEDS_ASSESSMENT', label: 'Initial Needs Assessment' },
+    { value: 'CLOSURE', label: 'Closure Report' },
+  ];
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -145,68 +215,69 @@ export function ReportGenerator({ caseId, interactions = [], onReportGenerated }
           Generate Report
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Generate Report</DialogTitle>
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0">
+        <DialogHeader className="p-6 pb-0">
+          <DialogTitle className="text-xl" style={{ fontFamily: "'Instrument Serif', Georgia, serif" }}>
+            Generate Report
+          </DialogTitle>
           <DialogDescription>
-            Select interactions and add context to generate an AI-powered report
+            Create an AI-generated report based on case interactions
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Report Type and Controls */}
+        <div className="p-6 space-y-5">
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <FileStack className="h-4 w-4 text-muted-foreground" />
+              Report Type
+            </Label>
+            <Select
+              value={formData.reportType}
+              onValueChange={(value) =>
+                setFormData({ ...formData, reportType: value })
+              }
+            >
+              <SelectTrigger className="h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {reportTypes.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-muted-foreground" />
+              Tone
+            </Label>
+            <Select
+              value={formData.tone}
+              onValueChange={(value) => setFormData({ ...formData, tone: value })}
+            >
+              <SelectTrigger className="h-11">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="neutral">Neutral (Professional standard)</SelectItem>
+                <SelectItem value="supportive">Supportive (Emphasize wellbeing)</SelectItem>
+                <SelectItem value="assertive">Assertive (Clear expectations)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>Report Type</Label>
-              <Select
-                value={formData.reportType}
-                onValueChange={(value) =>
-                  setFormData({ ...formData, reportType: value })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PROGRESS_REPORT">Progress Report</SelectItem>
-                  <SelectItem value="RTW_PLAN">RTW Plan</SelectItem>
-                  <SelectItem value="CASE_CONFERENCE">Case Conference Minutes</SelectItem>
-                  <SelectItem value="INITIAL_NEEDS_ASSESSMENT">
-                    Initial Needs Assessment
-                  </SelectItem>
-                  <SelectItem value="CLOSURE">Closure Report</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Tone</Label>
-              <Select
-                value={formData.tone}
-                onValueChange={(value) => setFormData({ ...formData, tone: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="neutral">Neutral (Professional standard)</SelectItem>
-                  <SelectItem value="supportive">
-                    Supportive (Emphasize wellbeing)
-                  </SelectItem>
-                  <SelectItem value="assertive">
-                    Assertive (Clear expectations)
-                  </SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Length</Label>
+              <Label className="text-sm font-medium">Length</Label>
               <Select
                 value={formData.length}
                 onValueChange={(value) => setFormData({ ...formData, length: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -218,12 +289,15 @@ export function ReportGenerator({ caseId, interactions = [], onReportGenerated }
             </div>
 
             <div className="space-y-2">
-              <Label>Audience</Label>
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                Audience
+              </Label>
               <Select
                 value={formData.audience}
                 onValueChange={(value) => setFormData({ ...formData, audience: value })}
               >
-                <SelectTrigger>
+                <SelectTrigger className="h-11">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
@@ -237,123 +311,296 @@ export function ReportGenerator({ caseId, interactions = [], onReportGenerated }
           </div>
 
           {/* Interaction Selection */}
-          {interactions.length > 0 && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <Label>Select Interactions to Include</Label>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                Select Interactions
+              </Label>
+              {interactions.length > 0 && (
                 <Button
+                  type="button"
                   variant="ghost"
                   size="sm"
                   onClick={handleSelectAll}
-                  className="text-xs"
+                  className="h-7 text-xs"
                 >
-                  {selectedInteractionIds.length === interactions.length
+                  {formData.selectedInteractionIds.length === interactions.length
                     ? 'Deselect All'
                     : 'Select All'}
                 </Button>
-              </div>
-              <Card>
-                <div className="max-h-[200px] overflow-y-auto">
-                  <CardContent className="p-4 space-y-2">
-                    {interactions.map((interaction) => {
-                      const isSelected = selectedInteractionIds.includes(interaction.id);
-                      const date = new Date(interaction.dateTime);
-                      
-                      return (
-                        <div
-                          key={interaction.id}
-                          className={\`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
-                            isSelected
-                              ? 'bg-primary/5 border-primary'
-                              : 'hover:bg-accent'
-                          }\`}
-                          onClick={() => handleToggleInteraction(interaction.id)}
-                        >
-                          <Checkbox
-                            checked={isSelected}
-                            onCheckedChange={() => handleToggleInteraction(interaction.id)}
-                            className="mt-1"
-                          />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="text-lg">{getTypeIcon(interaction.type)}</span>
-                              <Badge variant="outline" className="text-xs">
-                                {getTypeLabel(interaction.type)}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground flex items-center gap-1">
-                                <Calendar className="h-3 w-3" />
-                                {format(date, 'dd MMM yyyy HH:mm')}
-                              </span>
-                            </div>
-                            {interaction.participants.length > 0 && (
-                              <div className="flex items-center gap-1 text-xs text-muted-foreground mb-1">
-                                <Users className="h-3 w-3" />
-                                {interaction.participants.join(', ')}
-                              </div>
-                            )}
-                            {interaction.aiSummary && (
-                              <p className="text-xs text-muted-foreground line-clamp-2 mt-1">
-                                {interaction.aiSummary}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </CardContent>
-                </div>
-              </Card>
-              <p className="text-xs text-muted-foreground">
-                {selectedInteractionIds.length} of {interactions.length} interactions selected
-              </p>
+              )}
             </div>
-          )}
+            <div className="rounded-xl border border-border/60 bg-card/50 max-h-48 overflow-y-auto p-3 space-y-2">
+              {loadingInteractions ? (
+                <div className="flex items-center justify-center py-8">
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                  <span className="ml-2 text-sm text-muted-foreground">Loading interactions...</span>
+                </div>
+              ) : interactions.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  No interactions found. Recent interactions will be used by default.
+                </p>
+              ) : (
+                interactions.map((interaction) => (
+                  <div
+                    key={interaction.id}
+                    className="flex items-start gap-3 p-2 rounded-lg hover:bg-accent/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={formData.selectedInteractionIds.includes(interaction.id)}
+                      onCheckedChange={() => handleInteractionToggle(interaction.id)}
+                      className="mt-0.5"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-medium text-foreground">
+                          {getTypeLabel(interaction.type)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {format(new Date(interaction.dateTime), 'dd MMM yyyy')}
+                        </span>
+                      </div>
+                      {interaction.participants.length > 0 && (
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {interaction.participants.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {formData.selectedInteractionIds.length === 0
+                ? 'Leave unselected to use recent interactions (last 6 weeks)'
+                : `${formData.selectedInteractionIds.length} interaction${formData.selectedInteractionIds.length === 1 ? '' : 's'} selected`}
+            </p>
+          </div>
 
-          {/* Extra Context */}
+          {/* Report Points Selection */}
+          <div className="space-y-3 p-4 bg-muted/30 rounded-lg border border-border/60">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-medium flex items-center gap-2">
+                <Sparkles className="h-4 w-4" />
+                Report Points & Sections
+              </Label>
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    // Save to localStorage
+                    const savedPoints = {
+                      reportType: formData.reportType,
+                      points: reportPoints,
+                    };
+                    localStorage.setItem(`report-points-${caseId}`, JSON.stringify(savedPoints));
+                    alert('Report points saved!');
+                  }}
+                  className="h-7 px-2 text-xs gap-1.5"
+                >
+                  <Save className="h-3.5 w-3.5" />
+                  Save
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowSectionOptions(!showSectionOptions)}
+                  className="h-7 px-2 text-xs"
+                >
+                  {showSectionOptions ? 'Hide' : 'Customize'}
+                </Button>
+              </div>
+            </div>
+            {showSectionOptions && (
+              <div className="space-y-3 pt-2">
+                {/* All Points (Standard + Custom) */}
+                {reportPoints.map((point) => (
+                  <div key={point.id} className="flex items-center gap-2 group">
+                    <Checkbox
+                      id={`point-${point.id}`}
+                      checked={point.enabled}
+                      onCheckedChange={(checked) =>
+                        setReportPoints(
+                          reportPoints.map((p) =>
+                            p.id === point.id ? { ...p, enabled: checked as boolean } : p
+                          )
+                        )
+                      }
+                    />
+                    {editingSection === point.id ? (
+                      <div className="flex items-center gap-2 flex-1">
+                        <Input
+                          value={point.label}
+                          onChange={(e) =>
+                            setReportPoints(
+                              reportPoints.map((p) =>
+                                p.id === point.id ? { ...p, label: e.target.value } : p
+                              )
+                            )
+                          }
+                          className="h-8 text-sm flex-1"
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setEditingSection(null);
+                            }
+                            if (e.key === 'Escape') {
+                              setEditingSection(null);
+                            }
+                          }}
+                          autoFocus
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingSection(null)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Save className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setReportPoints(reportPoints.filter((p) => p.id !== point.id));
+                            setEditingSection(null);
+                          }}
+                          className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Label
+                          htmlFor={`point-${point.id}`}
+                          className="text-sm font-normal cursor-pointer flex-1"
+                        >
+                          {point.label}
+                        </Label>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setEditingSection(point.id)}
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <Edit2 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setReportPoints(reportPoints.filter((p) => p.id !== point.id));
+                          }}
+                          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+
+                {/* Add New Point */}
+                <div className="flex items-center gap-2 pt-2 border-t border-border/60">
+                  <Input
+                    value={newSectionName}
+                    onChange={(e) => setNewSectionName(e.target.value)}
+                    placeholder="Add new point or section..."
+                    className="h-8 text-sm flex-1"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && newSectionName.trim()) {
+                        setReportPoints([
+                          ...reportPoints,
+                          {
+                            id: `point-${Date.now()}`,
+                            label: newSectionName.trim(),
+                            enabled: true,
+                          },
+                        ]);
+                        setNewSectionName('');
+                      }
+                    }}
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      if (newSectionName.trim()) {
+                        setReportPoints([
+                          ...reportPoints,
+                          {
+                            id: `point-${Date.now()}`,
+                            label: newSectionName.trim(),
+                            enabled: true,
+                          },
+                        ]);
+                        setNewSectionName('');
+                      }
+                    }}
+                    className="h-8 px-2 gap-1.5"
+                    disabled={!newSectionName.trim()}
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Add
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Additional Context */}
           <div className="space-y-2">
-            <Label htmlFor="extra-context">
-              Additional Context or Instructions
-              <span className="text-muted-foreground text-xs font-normal ml-1">
-                (Optional - will be included in report generation)
-              </span>
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <FileEdit className="h-4 w-4 text-muted-foreground" />
+              Additional Context (Optional)
             </Label>
             <Textarea
-              id="extra-context"
-              placeholder="Add any additional information, specific points to emphasize, or special instructions for the report generation..."
-              value={extraContext}
-              onChange={(e) => setExtraContext(e.target.value)}
+              value={formData.extraContext}
+              onChange={(e) => setFormData({ ...formData, extraContext: e.target.value })}
+              placeholder="Add any additional context, specific points to emphasize, or instructions for the report generation..."
               rows={4}
               className="resize-none"
             />
             <p className="text-xs text-muted-foreground">
-              This context will be provided to the AI to help generate a more tailored report.
+              Provide any additional information or specific requirements for the report.
             </p>
           </div>
 
-          {/* Info Box */}
-          <div className="bg-muted p-3 rounded-lg text-sm text-muted-foreground">
-            <p className="font-medium mb-1">Note:</p>
-            <ul className="list-disc list-inside space-y-1 text-xs">
-              <li>Select specific interactions to include, or leave all selected for comprehensive report</li>
-              <li>Add extra context to guide the AI on specific points to emphasize</li>
-              <li>Review and edit the generated report before sending to any external party</li>
-            </ul>
+          <div className="rounded-xl bg-accent/50 p-4 flex items-start gap-3">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 shrink-0">
+              <Sparkles className="h-4 w-4 text-primary" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">AI-Powered Generation</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                This will use AI to generate a draft report based on recent case interactions. 
+                Always review and edit before sending to any external party.
+              </p>
+            </div>
           </div>
 
-          {/* Actions */}
-          <div className="flex justify-end gap-2">
+          <div className="flex justify-end gap-3 pt-2">
             <Button variant="outline" onClick={() => setOpen(false)}>
               Cancel
             </Button>
-            <Button onClick={handleGenerate} disabled={loading}>
+            <Button onClick={handleGenerate} disabled={loading} className="gap-2">
               {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   Generating...
                 </>
               ) : (
                 <>
-                  <FileText className="mr-2 h-4 w-4" />
+                  <Sparkles className="h-4 w-4" />
                   Generate Report
                 </>
               )}
