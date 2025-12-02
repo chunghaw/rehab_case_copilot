@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db/prisma';
-import { createSession, verifyPassword } from '@/lib/auth';
+import { verifyPassword } from '@/lib/auth';
 import { z } from 'zod';
+import { cookies } from 'next/headers';
 
 const loginSchema = z.object({
   username: z.string().min(1),
@@ -34,14 +35,16 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create session
-    try {
-      await createSession(user.id, user.username);
-    } catch (sessionError) {
-      console.error('Session creation error:', sessionError);
-      // Still return success but log the error
-      // In production, you might want to handle this differently
-    }
+    // Create session cookie
+    const sessionId = `${user.id}-${Date.now()}-${Math.random().toString(36).substring(7)}`;
+    const cookieStore = await cookies();
+    cookieStore.set('rehab_session', sessionId, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 60 * 60 * 24 * 7, // 7 days
+      path: '/',
+    });
 
     return NextResponse.json({
       success: true,
